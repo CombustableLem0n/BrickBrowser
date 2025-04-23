@@ -7,8 +7,8 @@ from PIL import Image
 # train_dir = r"C:\Users\legol\OneDrive\Desktop\Part_Dataset\train"
 # val_dir = r"C:\Users\legol\OneDrive\Desktop\Part_Dataset\validation"
 
-dataset_dir = r"C:\Users\legol\OneDrive\Desktop\Part_Dataset"
-output_json = r"C:\Users\legol\OneDrive\Desktop\Part_Dataset\annotation.json"
+dataset_dir = r"C:\Users\legol\OneDrive\Desktop\Smaller_Dataset"
+output_json = r"C:\Users\legol\OneDrive\Desktop\Smaller_Dataset\annotation.json"
 categories = []
 annotations = []
 images = []
