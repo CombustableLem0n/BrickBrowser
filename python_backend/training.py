@@ -9,7 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Paths
-root_dir = r"C:\Users\legol\OneDrive\Desktop\Smaller_Dataset"
+root_dir = r"C:\Users\legol\OneDrive\Desktop\RenderProject\train_val_split"
 train_dir = os.path.join(root_dir, "train")
 val_dir = os.path.join(root_dir, "val")
 ann_file = os.path.join(root_dir, "annotation.json")  # Must cover both train and val images or split
@@ -94,7 +94,7 @@ optimizer = torch.optim.SGD(params, lr=0.005, momentum=0.9, weight_decay=0.0005)
 lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=0.1)
 
 # Training loop
-num_epochs = 10
+num_epochs = 3
 for epoch in range(num_epochs):
     print(f"\n🔁 Starting Epoch {epoch + 1}/{num_epochs}")
     model.train()
