@@ -123,8 +123,12 @@ class _MyHomePageState extends State<MyHomePage> {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 _selectedImageBytes == null
-                    ? Image.asset(_defaultImagePath)
-                    : Image.memory(_selectedImageBytes!),
+                  ? Image.asset(_defaultImagePath, height: 300, fit: BoxFit.contain)
+                  : Image.memory(
+                      _selectedImageBytes!,
+                      height: 300,
+                      fit: BoxFit.contain,
+                    ),
 
                 const SizedBox(height: 20),
                 ElevatedButton(
@@ -139,7 +143,11 @@ class _MyHomePageState extends State<MyHomePage> {
                 const SizedBox(height: 20),
 
                 if (_alteredImageBytes != null)
-                  Image.memory(_alteredImageBytes!),
+                  Image.memory(
+                    _alteredImageBytes!,
+                    height: 300,
+                    fit: BoxFit.contain,
+                  ),
               ],
             ),
           ),

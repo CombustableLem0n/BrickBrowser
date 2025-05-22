@@ -9,7 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Paths
-root_dir = r"C:\Users\legol\OneDrive\Desktop\RenderProject\train_val_split"
+root_dir = r"C:\Users\legol\OneDrive\Desktop\TwoMask_Dataset\train_val_split"
 train_dir = os.path.join(root_dir, "train")
 val_dir = os.path.join(root_dir, "val")
 ann_file = os.path.join(root_dir, "annotation.json")  # Must cover both train and val images or split
