@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify
 from PIL import Image, ImageDraw
 import io
 import os
@@ -7,12 +7,15 @@ from werkzeug.utils import secure_filename
 from flask_cors import CORS
 import torch
 import torchvision
-from torchvision.models.detection.ssd import SSD300_VGG16_Weights
+from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.transforms import functional as F
-import imghdr  # To detect image format
-import matplotlib.pyplot as plt
-import cv2
-import numpy as np
+import imghdr
+import base64
+
+from flask_cors import CORS
+from requests_oauthlib import OAuth1Session
+import traceback
+from dotenv import load_dotenv
 
 app = Flask(__name__)
 CORS(app)
@@ -48,15 +51,11 @@ def upload_image():
         image = Image.open(file).convert("RGB")
         print(f"🖼️ Image loaded successfully")
 
-        from torchvision.models.detection import fasterrcnn_resnet50_fpn
-        from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
-
         def load_custom_model():
             num_classes = 3
-            model = fasterrcnn_resnet50_fpn(pretrained=False)
+            model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=False)
             in_features = model.roi_heads.box_predictor.cls_score.in_features
             model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
-
             model_path = r"C:\Users\legol\OneDrive\Desktop\ClassProject\trained_model\lego_detector.pth"
             model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
             model.eval()
@@ -75,30 +74,11 @@ def upload_image():
         labels = predictions[0]["labels"]
         scores = predictions[0]["scores"]
 
-        # DEBUG: Log all predictions before filtering
         print("📊 All Predictions:")
         for i, (box, label, score) in enumerate(zip(boxes, labels, scores)):
             print(f" → Object {i}: Label={label.item()}, Score={score.item():.4f}, Box={box.tolist()}")
 
-        # Save raw predictions to debug_output.json
-        raw_output = [
-            {"label": int(label), "score": float(score), "box": box.tolist()}
-            for box, label, score in zip(boxes, labels, scores)
-        ]
-        with open("debug_output.json", "w") as f:
-            json.dump(raw_output, f, indent=2)
-        print("💾 Raw predictions saved to debug_output.json")
-
-        # Optional: Draw ALL boxes (even low-confidence) for visual inspection
-        debug_image = image.copy()
-        draw_debug = ImageDraw.Draw(debug_image)
-        for box in boxes:
-            draw_debug.rectangle(box.tolist(), outline="blue", width=2)
-        debug_image.save("debug_all_boxes.png")
-        print("🖼️ Debug image with all boxes saved as debug_all_boxes.png")
-
-        # Apply confidence filtering
-        confidence_threshold = 0.1
+        confidence_threshold = 0.5
         print(f"⚙️ Filtering objects with confidence > {confidence_threshold}")
         filtered_boxes = [
             (box, label, score)
@@ -107,7 +87,7 @@ def upload_image():
         ]
         print(f"✅ Found {len(filtered_boxes)} objects above threshold")
 
-        highlighted_images = []
+        highlighted_images_base64 = []
 
         for i, (box, label, score) in enumerate(filtered_boxes):
             img_copy = image.copy()
@@ -115,28 +95,106 @@ def upload_image():
             box = box.tolist()
             draw.rectangle(box, outline="red", width=5)
             draw.text((box[0], box[1] - 10), f"{score:.2f}", fill="red")
-            highlighted_images.append(img_copy)
 
-        if not highlighted_images:
-            print("❌ No highlighted images created.")
+            img_byte_arr = io.BytesIO()
+            img_format = file_extension.upper() if file_extension.upper() in ["JPEG", "PNG"] else "PNG"
+            img_copy.save(img_byte_arr, format=img_format)
+            img_byte_arr.seek(0)
+            base64_img = base64.b64encode(img_byte_arr.read()).decode('utf-8')
+
+            highlighted_images_base64.append({
+                "label": int(label),
+                "score": float(score),
+                "image_base64": base64_img
+            })
+
+        if not highlighted_images_base64:
+            print("❌ No objects detected above threshold.")
             return jsonify({"error": "No objects detected above the threshold"}), 404
 
-        image_format = file_extension.upper() if file_extension.upper() in ["JPEG", "PNG"] else "PNG"
-        img_byte_arr = io.BytesIO()
-        highlighted_images[0].save(img_byte_arr, format=image_format)
-        img_byte_arr.seek(0)
+        print("📤 Sending back JSON with all highlighted images (base64)")
+        return jsonify({
+            "results": highlighted_images_base64,
+            "format": img_format.lower()
+        })
 
-        print("📤 Sending back altered image...")
-        return send_file(img_byte_arr, mimetype=f'image/{image_format.lower()}')
-    
     except Exception as e:
         print(f"❌ Error processing image: {e}")
         return jsonify({"error": f"Error processing image: {str(e)}"}), 500
+    
+
+load_dotenv()  # Load variables from .env into environment
+
+consumer_key = os.getenv('CONSUMER_KEY')
+consumer_secret = os.getenv('CONSUMER_SECRET')
+token = os.getenv('TOKEN')
+token_secret = os.getenv('TOKEN_SECRET')
+
+@app.route('/part-images', methods=['POST'])
+def part_images():
+    data = request.json
+    part_numbers = data.get('part_numbers')
+
+    if not part_numbers or not isinstance(part_numbers, list):
+        return jsonify({'error': 'Missing or invalid part_numbers'}), 400
+
+    oauth = OAuth1Session(
+        client_key=consumer_key,
+        client_secret=consumer_secret,
+        resource_owner_key=token,
+        resource_owner_secret=token_secret,
+    )
+
+    results = []
+
+    try:
+        for part_number in part_numbers:
+            print(f"Looking up image for part {part_number}")
+            image_url = None
+            color_used = None
+
+            # Step 1: Get known colors for the part
+            colors_url = f'https://api.bricklink.com/api/store/v1/items/PART/{part_number}/colors'
+            colors_resp = oauth.get(colors_url)
+
+            if colors_resp.status_code == 200:
+                colors_data = colors_resp.json().get('data', [])
+                if colors_data:
+                    # Pick the first known color's ID
+                    color_used = colors_data[0].get('color_id') or colors_data[0].get('id')
+                    print(f"Found known color {color_used} for part {part_number}")
+
+                    # Step 2: Get image for that part in the first known color
+                    image_url_api = f'https://api.bricklink.com/api/store/v1/items/PART/{part_number}/images/{color_used}'
+                    image_resp = oauth.get(image_url_api)
+
+                    if image_resp.status_code == 200:
+                        image_data = image_resp.json().get('data', {})
+                        image_url = image_data.get('thumbnail_url')
+                        print(f"Found image for part {part_number} in color {color_used}")
+                    else:
+                        print(f"Image not found for part {part_number} in color {color_used}")
+                else:
+                    print(f"No known colors found for part {part_number}")
+            else:
+                print(f"Failed to get colors for part {part_number}, status: {colors_resp.status_code}")
+
+            results.append({
+                'part_number': part_number,
+                'image_url': image_url,
+                'color_id': color_used,
+                'external_url': f'https://www.bricklink.com/v2/catalog/catalogitem.page?P={part_number}' + (f'&C={color_used}' if color_used else '')
+            })
+
+        return jsonify({'images': results})
+
+    except Exception as e:
+        print("Exception in /part-images:", traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
 
-
 #  Run in terminal: python -m flask --app extra run
 #  Must be ran while python_backend is in filepath
-#  Example path: C:\Users\Developer\Project\python_backend
+#  Example path: C:\Users\Developer\Project\python_backend)
