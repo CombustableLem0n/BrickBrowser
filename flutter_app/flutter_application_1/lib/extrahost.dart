@@ -1,3 +1,5 @@
+// https://flask-app-557730181047.us-central1.run.app
+
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -75,6 +77,52 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
+  Future<void> _testPing() async {
+    final url =
+        Uri.parse('https://flask-app-557730181047.us-central1.run.app/ping');
+
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ping response: ${response.body}')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('Ping failed with status: ${response.statusCode}')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Ping error: $e')),
+      );
+    }
+  }
+
+  Future<void> _testGcsAccess() async {
+    final url = Uri.parse(
+        'https://flask-app-557730181047.us-central1.run.app/check-gcs-access');
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('GCS access response: ${response.body}')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text(
+                  'GCS access check failed with status: ${response.statusCode}')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('GCS access error: $e')),
+      );
+    }
+  }
+
   Future<void> _uploadImage() async {
     if (_selectedImageBytes == null) {
       print("No image selected.");
@@ -84,13 +132,15 @@ class _MyHomePageState extends State<MyHomePage> {
     String? fileExtension;
     if (_selectedImageBytes!.sublist(0, 2).toString() == '[137, 80]') {
       fileExtension = 'png';
-    } else if (_selectedImageBytes!.sublist(0, 3).toString() == '[255, 216, 255]') {
+    } else if (_selectedImageBytes!.sublist(0, 3).toString() ==
+        '[255, 216, 255]') {
       fileExtension = 'jpg';
     } else {
       fileExtension = 'jpg';
     }
 
-    var uri = Uri.parse('http://127.0.0.1:5000/image');
+    var uri =
+        Uri.parse('https://flask-app-557730181047.us-central1.run.app/image');
     var request = http.MultipartRequest('POST', uri);
 
     String filename = 'upload.$fileExtension';
@@ -140,7 +190,9 @@ class _MyHomePageState extends State<MyHomePage> {
       } else {
         print('Failed to upload image: ${response.statusCode}');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to upload image, error: ${response.statusCode}')),
+          SnackBar(
+              content: Text(
+                  'Failed to upload image, error: ${response.statusCode}')),
         );
       }
     } catch (e) {
@@ -155,7 +207,8 @@ class _MyHomePageState extends State<MyHomePage> {
 
   // NEW function to fetch images for parts
   Future<void> fetchPartImages(List<String> partNumbers) async {
-    final url = Uri.parse('http://127.0.0.1:5000/part-images');
+    final url = Uri.parse(
+        'https://flask-app-557730181047.us-central1.run.app/part-images');
 
     try {
       final response = await http.post(
@@ -213,24 +266,41 @@ class _MyHomePageState extends State<MyHomePage> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 _selectedImageBytes == null
-                    ? Image.asset(_defaultImagePath, height: 300, fit: BoxFit.contain)
-                    : Image.memory(_selectedImageBytes!, height: 300, fit: BoxFit.contain),
+                    ? Image.asset(_defaultImagePath,
+                        height: 300, fit: BoxFit.contain)
+                    : Image.memory(_selectedImageBytes!,
+                        height: 300, fit: BoxFit.contain),
                 const SizedBox(height: 20),
-                ElevatedButton(onPressed: _pickImage, child: const Text("Pick an Image")),
+                ElevatedButton(
+                    onPressed: _pickImage, child: const Text("Pick an Image")),
                 const SizedBox(height: 20),
-                ElevatedButton(onPressed: _uploadImage, child: const Text("Upload Image")),
+                ElevatedButton(
+                    onPressed: _uploadImage, child: const Text("Upload Image")),
                 const SizedBox(height: 20),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: _testPing,
+                  child: const Text("Test /ping Endpoint"),
+                ),
+                const SizedBox(height: 10),
+                ElevatedButton(
+                  onPressed: _testGcsAccess,
+                  child: const Text("Test /check-gcs-access Endpoint"),
+                ),
                 if (_sets.isNotEmpty)
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text("BrickLink Part Images:", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      const Text("BrickLink Part Images:",
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold)),
                       ..._sets.map((set) => ListTile(
                             leading: set['image_url'] != null
                                 ? Image.network(set['image_url'], width: 50)
                                 : const Icon(Icons.image_not_supported),
                             title: Text(set['part_number'] ?? "Unknown Part"),
-                            subtitle: Text("ID: ${set['part_number'] ?? "N/A"}"),
+                            subtitle:
+                                Text("ID: ${set['part_number'] ?? "N/A"}"),
                             onTap: () {
                               final url = Uri.parse(set['external_url']);
                               openUrl(url);
@@ -248,7 +318,8 @@ class _MyHomePageState extends State<MyHomePage> {
 
                     if (partsToFetch.isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("No valid parts detected to fetch.")),
+                        const SnackBar(
+                            content: Text("No valid parts detected to fetch.")),
                       );
                       return;
                     }
@@ -263,7 +334,8 @@ class _MyHomePageState extends State<MyHomePage> {
                     children: [
                       Text(
                         "Part: ${_resultLabels[_currentIndex]}",
-                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 10),
                       Image.memory(
@@ -276,12 +348,15 @@ class _MyHomePageState extends State<MyHomePage> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           ElevatedButton(
-                            onPressed: _currentIndex > 0 ? _showPreviousImage : null,
+                            onPressed:
+                                _currentIndex > 0 ? _showPreviousImage : null,
                             child: const Icon(Icons.arrow_left),
                           ),
                           const SizedBox(width: 20),
                           ElevatedButton(
-                            onPressed: _currentIndex < _resultImages.length - 1 ? _showNextImage : null,
+                            onPressed: _currentIndex < _resultImages.length - 1
+                                ? _showNextImage
+                                : null,
                             child: const Icon(Icons.arrow_right),
                           ),
                         ],
